@@ -1,6 +1,9 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const gravatar = require("gravatar");
+const fs = require("fs/promises");
+const path = require("path");
 
 const { SECRET_KEY } = process.env;
 
@@ -24,15 +27,17 @@ const userRegister = async (req, res, next) => {
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
-
+      const avatarURL = gravatar.url(email);
     const newUser = await User.create({
       ...req.body,
       password: hashPassword,
+      avatarURL,
     });
     res.status(201).json({
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
+        avatarURL,
       },
     });
   } catch (error) {
@@ -112,6 +117,27 @@ const userUpdateSubscription = async (req, res, next) => {
     next(error);
   }
 };
+const userUpdateAvatar = async (req, res, next) => {
+  console.log(req.file);
+  try {
+    const { _id } = req.user;
+    const newDirFile = path.join(__dirname, "../", "public", "avatars");
+    const { path: oldPathFile, originalname } = req.file;
+
+    const newPathFile = path.join(newDirFile, `${_id}_${originalname}`);
+    await fs.rename(oldPathFile, newPathFile);
+
+    const avatarURL = path.join("avatars", `${_id}_${originalname}`);
+
+    await User.findByIdAndUpdate(_id, { avatarURL });
+    res.status(200).json({
+      avatarURL,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 module.exports = {
   userRegister,
@@ -119,4 +145,5 @@ module.exports = {
   userCurrent,
   userLogout,
   userUpdateSubscription,
+  userUpdateAvatar,
 };
