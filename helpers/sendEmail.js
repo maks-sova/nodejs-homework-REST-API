@@ -4,11 +4,11 @@ require("dotenv").config();
 const { GMAIL_COM_PASSWORD } = process.env;
 
 const nodemailerConfig = {
-  host: "smtp.ukr.net",
+  host: "smtp.meta.ua",
   port: 465,
   secure: true, // true for 465, false for other ports
   auth: {
-    user: "maxxxhill2k@gmail.com",
+    user: "maxkraft@meta.ua",
     pass: GMAIL_COM_PASSWORD,
   },
 };
@@ -17,7 +17,7 @@ const transporter = nodemailer.createTransport(nodemailerConfig);
 
 const sendEmail = (verifyEmail) => {
   transporter
-    .sendMail({ ...verifyEmail, from: '"Fred Foo 👻" <maxxxhill2k@gmail.com>' })
+    .sendMail({ ...verifyEmail, from: '"Free" <maxkraft@meta.ua>' })
     .then(() => console.log("success"))
     .catch((error) => console.log(error));
 };
