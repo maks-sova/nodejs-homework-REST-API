@@ -7,6 +7,10 @@ const ctrl = require("../../controllers");
 
 router.post("/register", ctrl.userRegister);
 
+router.get("/verify/:verificationToken", ctrl.userVerifyEmail);
+
+router.post("/verify", ctrl.userVerifyEmailRepetedly);
+
 router.post("/login", ctrl.userLogin);
 
 router.post("/logout", authenticate, ctrl.userLogout);
