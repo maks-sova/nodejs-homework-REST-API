@@ -4,12 +4,18 @@ require("dotenv").config();
 const gravatar = require("gravatar");
 const fs = require("fs/promises");
 const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 
-const { SECRET_KEY } = process.env;
+const { SECRET_KEY, BASE_URL } = process.env;
 
 const User = require("../models/user");
 
-const { HttpError, registerSchema } = require("../helpers");
+const {
+  HttpError,
+  registerSchema,
+  sendEmail,
+  emailSchema,
+} = require("../helpers");
 
 const userRegister = async (req, res, next) => {
   try {
@@ -27,12 +33,29 @@ const userRegister = async (req, res, next) => {
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
-      const avatarURL = gravatar.url(email);
+    const avatarURL = gravatar.url(email);
+    const verificationToken = uuidv4();
+
     const newUser = await User.create({
       ...req.body,
       password: hashPassword,
       avatarURL,
+      verificationToken,
     });
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a
+          target="_blank"
+          href="${BASE_URL}/api/users/verify/${verificationToken}"
+        >
+          Click verify email
+        </a>`,
+    };
+
+    sendEmail(verifyEmail);
+
     res.status(201).json({
       user: {
         email: newUser.email,
@@ -45,6 +68,68 @@ const userRegister = async (req, res, next) => {
   }
 };
 
+const userVerifyEmail = async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+    const user = await User.findOne({ verificationToken });
+    if (!user) {
+      res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      verify: true,
+      verificationToken: "",
+    });
+
+    res.status(200).json({
+      message: "Verification successful",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const userVerifyEmailRepetedly = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const { error } = emailSchema.validate(req.body);
+    if (error) {
+      throw HttpError(400, "missing required field email");
+    }
+
+    const userExist = await User.findOne({ email });
+    if (!userExist) {
+      throw HttpError(404, "User not found");
+    }
+
+    if (userExist.verify) {
+      throw HttpError(404, "Verification has already been passed");
+    }
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a
+          target="_blank"
+          href="${BASE_URL}/api/users/verify/${userExist.verificationToken}"
+        >
+          Click verify email
+        </a>`,
+    };
+
+    sendEmail(verifyEmail);
+
+    res.status(200).json({
+      message: "Verification email sent",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 const userLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -55,9 +140,13 @@ const userLogin = async (req, res, next) => {
         "Error validation: email or password is not correct"
       );
     }
+
     const userExist = await User.findOne({ email });
     if (!userExist) {
       throw HttpError(401, "Email or password is wrong");
+    }
+     if (!userExist.verify) {
+      throw HttpError(401, "Email is not verified");
     }
 
     const isPasswordRight = await bcrypt.compare(password, userExist.password);
@@ -118,7 +207,7 @@ const userUpdateSubscription = async (req, res, next) => {
   }
 };
 const userUpdateAvatar = async (req, res, next) => {
-  console.log(req.file);
+ 
   try {
     const { _id } = req.user;
     const newDirFile = path.join(__dirname, "../", "public", "avatars");
@@ -143,6 +232,8 @@ module.exports = {
   userRegister,
   userLogin,
   userCurrent,
+  userVerifyEmail,
+  userVerifyEmailRepetedly,
   userLogout,
   userUpdateSubscription,
   userUpdateAvatar,
